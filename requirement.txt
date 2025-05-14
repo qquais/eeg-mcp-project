@@ -1,0 +1,29 @@
+# Core Frameworks
+flask
+flask-cors
+
+# Brainflow EEG SDK
+brainflow==5.16.0
+
+# Plotting and Utilities
+matplotlib
+numpy
+pandas
+
+# LangChain Core for RAG
+langchain
+langchain_community
+langchain_ollama
+langchain_chroma
+
+# Chroma Vector DB
+chromadb
+
+# File Handling
+python-dotenv
+
+# For Document Parsing (Unstructured Loader)
+unstructured
+
+# Ollama Embeddings / Local LLMs
+ollama-client  # For managing local LLM via Ollama API
