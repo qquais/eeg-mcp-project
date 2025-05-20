@@ -3,23 +3,9 @@
 
 This project contains:
 **EEG Data Processing MCP (Model Context Protocol) Server** using BrainFlow.
+
 **Local RAG (Retrieval-Augmented Generation)** system that leverages LangChain, Chroma VectorDB, and Ollama for contextual document-based Q&A for EEG.
 ---
-
-## 🗂️ Project Structure
-
-eeg-mcp-project/
-├── backend/
-│ ├── brainflow_server.py # MCP APIs (read, visualize, filter, features)
-│ ├── rag_server.py # RAG API server using Ollama LLM + Vector DB
-│ ├── vectorstore.py # Vector DB Population script
-│ └── .env # API keys & env variables (ignored in git)
-├── uploads/ # Temp uploads folder
-├── data/ # EDF EEG data files
-├── vectorstore/ # Persisted Chroma Vector DB files
-├── requirements.txt # Python dependencies list
-├── .gitignore # Ignore node_modules, .env, cache files
-└── README.md # This file
 
 ## 🚀 Setup Instructions
 
