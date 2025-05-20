@@ -16,8 +16,9 @@ cd eeg-mcp-project
 
 ### 2️⃣ Setup Python Virtual Environment
 python -m venv .venv
+
 source .venv/bin/activate  # Mac/Linux
-# .venv\Scripts\activate   # Windows
+
 
 ### 3️⃣ Install Python Dependencies
 pip install -r requirement.txt
