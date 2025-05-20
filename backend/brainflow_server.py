@@ -200,5 +200,47 @@ def features_edf():
         print(f"Error in features-edf: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/summary-edf', methods=['POST'])
+def summary_edf():
+    try:
+        file = request.files['file']
+        file_id = str(uuid.uuid4())
+        filepath = os.path.join(UPLOAD_DIR, f'{file_id}.edf')
+        file.save(filepath)
+
+        params = BrainFlowInputParams()
+        params.file = filepath
+        board_id = BoardIds.SYNTHETIC_BOARD.value
+
+        board = BoardShim(board_id, params)
+        board.prepare_session()
+        board.start_stream()
+        time.sleep(2)
+
+        data = board.get_board_data()
+
+        board.stop_stream()
+        board.release_session()
+
+        eeg_channels = BoardShim.get_eeg_channels(board_id)
+        summary = {}
+
+        for i, ch in enumerate(eeg_channels):
+            signal = data[ch]
+            summary[f'channel_{i+1}'] = {
+                'mean': np.mean(signal),
+                'std': np.std(signal),
+                'min': float(np.min(signal)),
+                'max': float(np.max(signal))
+            }
+
+        os.remove(filepath)
+        return jsonify({'summary': summary})
+
+    except Exception as e:
+        print(f"Error in summary-edf: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
