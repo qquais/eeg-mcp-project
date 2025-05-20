@@ -6,7 +6,6 @@ This project contains:
 **EEG Data Processing MCP (Model Context Protocol) Server** using BrainFlow.
 
 **Local RAG (Retrieval-Augmented Generation)** system that leverages LangChain, Chroma VectorDB, and Ollama for contextual document-based Q&A for EEG.
----
 
 ## 🚀 Setup Instructions
 
