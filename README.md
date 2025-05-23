@@ -1,4 +1,7 @@
 # eeg-mcp-project
+
+🧠 View the full [sequence diagram here](docs/sequence-diagram.md)
+
 # 🧠 MCP - EEG Data Processing & Local RAG Retrieval App
 
 This project contains:
