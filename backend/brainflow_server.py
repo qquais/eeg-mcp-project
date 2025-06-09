@@ -162,39 +162,24 @@ def features_edf():
         time.sleep(2)
 
         data = board.get_board_data()
-
         board.stop_stream()
         board.release_session()
 
         eeg_channels = BoardShim.get_eeg_channels(board_id)
         sampling_rate = BoardShim.get_sampling_rate(board_id)
 
-        print(f"Sampling Rate: {sampling_rate}")
-        print(f"Data Shape: {data.shape}")
-        print(f"EEG Channels: {eeg_channels}")
+        bands, _ = DataFilter.get_avg_band_powers(
+            data,
+            eeg_channels,
+            sampling_rate,
+            apply_filter=True
+        )
 
-        band_powers = {}
-        for i, ch in enumerate(eeg_channels):
-            print(f"Processing channel {ch}: data[ch].shape = {data[ch].shape}")
-
-            bands, rel_bands = DataFilter.get_avg_band_powers(
-                data[ch],
-                sampling_rate,
-                True,    # ✅ Correct parameter for apply_filter
-                0.5,
-                40.0
-            )
-
-            band_powers[f'channel_{i+1}'] = {
-                'delta': bands[0],
-                'theta': bands[1],
-                'alpha': bands[2],
-                'beta': bands[3],
-                'gamma': bands[4]
-            }
+        band_names = ["delta", "theta", "alpha", "beta", "gamma"]
+        averaged_powers = dict(zip(band_names, bands))
 
         os.remove(filepath)
-        return jsonify({'features': band_powers})
+        return jsonify({"features": averaged_powers})
 
     except Exception as e:
         print(f"Error in features-edf: {e}")
