@@ -1,12 +1,62 @@
-# Ignore Python cache
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
-# Ignore environment files
-.env
-*.env
+# C extensions
+*.so
 
-# Ignore uploads and data folders
-uploads/
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# VS Code
+.vscode/
+
+# macOS files
+.DS_Store
+
+# MCP CLI cache/config if any
+mcp_cli.egg-info/
+*.log
+
+# Project-specific
+*.edf  # optional, if you want to ignore large EDF test files
+
+# Data folder
 data/
-vectorstore/
+
+# Ignore uploads folder in mcp-server
+mcp-server/uploads/
