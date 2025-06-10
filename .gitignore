@@ -60,3 +60,17 @@ data/
 
 # Ignore uploads folder in mcp-server
 mcp-server/uploads/
+
+# Ignore macOS files
+.DS_Store
+
+# MCP CLI cache/config if any
+mcp_cli/engine-info/
+*.log
+
+# Optional: ignore large test EDF files
+*.edf
+
+# node-modules file
+mcp-server/node_modules/
+
