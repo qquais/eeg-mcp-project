@@ -60,6 +60,8 @@ node server.js # mcp-server folder
 
 - /filter-edf – Apply bandpass filtering to EEG signals.
 
+- /features-edf – Extract average band powers (Delta, Theta, Alpha, Beta, Gamma) from EEG signals.
+
 - /summary-edf – Summarize EEG signal characteristics and metadata
 
 2. RAG Knowledge Assistant (Ollama + Chroma)
