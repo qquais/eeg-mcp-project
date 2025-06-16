@@ -19,76 +19,100 @@ UPLOAD_DIR = './data'
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def read_edf_file(filepath):
+# Helper function for reading EDF files using MNE
+# This function reads an EDF file and returns the data and info.
+def read_with_mne(filepath):
     raw = mne.io.read_raw_edf(filepath, preload=False, verbose=False)
     data, times = raw[:, :]
     return data, raw.info
 
 
-# Actual reading the EEG files using MNE.
+# Helper function to read Emulated EEG data using BrainFlow's SYNTHETIC_BOARD
+# Emulated EEG using BrainFlow’s SYNTHETIC_BOARD
+def read_with_brainflow(filepath):
+    params = BrainFlowInputParams()
+    params.file = filepath
+    board_id = BoardIds.SYNTHETIC_BOARD.value
+
+    board = BoardShim(board_id, params)
+    board.prepare_session()
+    board.start_stream()
+    time.sleep(2)
+
+    data = board.get_board_data()
+    board.stop_stream()
+    board.release_session()
+
+    eeg_channels = BoardShim.get_eeg_channels(board_id)
+    sfreq = BoardShim.get_sampling_rate(board_id)
+
+    return data, eeg_channels, sfreq
+
+
 @app.route('/read-edf', methods=['POST'])
 def read_edf():
     try:
+        # ✅ Get engine from URL query parameter (temporary fix as we don't have a UI yet)
+        engine = request.args.get('engine', 'mne').strip().lower()
+        print(f"[DEBUG] Selected engine: '{engine}'")
+
+        # Get the uploaded file
         file = request.files.get('file')
-        if file is None or file.filename == '':
+        if not file or file.filename == '':
             return jsonify({"error": "No file uploaded"}), 400
 
+        # Save file temporarily
         file_id = str(uuid.uuid4())
         filepath = os.path.join(UPLOAD_DIR, f'{file_id}.edf')
         file.save(filepath)
 
-        data, info = read_edf_file(filepath)
+        # MNE path
+        if engine == 'mne':
+            print("[DEBUG] Running MNE reader")
+            data, info = read_with_mne(filepath)
+            preview = data[:3, :10].tolist()
+            sfreq = info['sfreq']
+            channels = info['ch_names'][:3]
+
+            response = {
+                "status": "success",
+                "engine": "mne",
+                "shape": list(data.shape),
+                "preview": preview,
+                "sfreq": sfreq,
+                "channels": channels
+            }
+
+        # BrainFlow path
+        elif engine == 'brainflow':
+            print("[DEBUG] Running BrainFlow reader")
+            data, eeg_channels, sfreq = read_with_brainflow(filepath)
+            preview = {
+                f'channel_{i+1}': data[ch][:10].tolist()
+                for i, ch in enumerate(eeg_channels[:3])
+            }
+
+            response = {
+                "status": "success",
+                "engine": "brainflow",
+                "shape": [len(eeg_channels), data.shape[1]],
+                "preview": preview,
+                "sfreq": sfreq,
+                "channels": [f'channel_{i+1}' for i in range(len(preview))]
+            }
+
+        else:
+            print(f"[DEBUG] Invalid engine received: '{engine}'")
+            return jsonify({"error": f"Invalid engine '{engine}'. Use 'mne' or 'brainflow'."}), 400
+
         os.remove(filepath)
-
-        preview = data[:3, :10].tolist()  # preview: first 3 channels × 10 samples
-
-        return jsonify({
-            "status": "success",
-            "shape": list(data.shape),
-            "preview": preview,
-            "sfreq": info['sfreq'],
-            "channels": info['ch_names'][:3]  # preview channel names
-        })
+        return jsonify(response)
 
     except Exception as e:
         import traceback
-        traceback.print_exc()  # Print full error for debugging
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-
-# This was just EDF handling which is technically emulated EEG input, not actual file parsing.
-# @app.route('/read-edf', methods=['POST'])
-# def read_edf():
-#     try:
-#         file = request.files['file']
-#         file_id = str(uuid.uuid4())
-#         filepath = os.path.join(UPLOAD_DIR, f'{file_id}.edf')
-#         file.save(filepath)
-
-#         params = BrainFlowInputParams()
-#         params.file = filepath
-#         board_id = BoardIds.SYNTHETIC_BOARD.value
-
-#         board = BoardShim(board_id, params)
-#         board.prepare_session()
-#         board.start_stream()
-#         time.sleep(2)
-
-#         data = board.get_board_data()
-
-#         board.stop_stream()
-#         board.release_session()
-
-#         eeg_channels = BoardShim.get_eeg_channels(board_id)
-#         eeg_data = {f'channel_{i+1}': data[ch].tolist() for i, ch in enumerate(eeg_channels)}
-
-#         os.remove(filepath)
-#         return jsonify({'channels': eeg_data})
-
-#     except Exception as e:
-#         print(f"Error in read-edf: {e}")
-#         return jsonify({'error': str(e)}), 500
 
 @app.route('/visualize-edf', methods=['POST'])
 def visualize_edf():
