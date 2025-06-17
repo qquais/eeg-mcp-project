@@ -52,9 +52,14 @@ def read_with_brainflow(filepath):
 @app.route('/read-edf', methods=['POST'])
 def read_edf():
     try:
-        # ✅ Get engine from URL query parameter (temporary fix as we don't have a UI yet)
+        # Get engine from URL query parameter (temporary fix as we don't have a UI yet)
         engine = request.args.get('engine', 'mne').strip().lower()
         print(f"[DEBUG] Selected engine: '{engine}'")
+
+        # User-controlled preview size
+        preview_channels = int(request.args.get('preview_channels', 3))
+        preview_samples = int(request.args.get('preview_samples', 10))
+        print(f"[DEBUG] Preview config: {preview_channels} channels × {preview_samples} samples")
 
         # Get the uploaded file
         file = request.files.get('file')
@@ -70,9 +75,14 @@ def read_edf():
         if engine == 'mne':
             print("[DEBUG] Running MNE reader")
             data, info = read_with_mne(filepath)
-            preview = data[:3, :10].tolist()
             sfreq = info['sfreq']
-            channels = info['ch_names'][:3]
+
+            # Clip preview to available data
+            max_ch = min(preview_channels, data.shape[0])
+            max_sm = min(preview_samples, data.shape[1])
+
+            preview = data[:max_ch, :max_sm].tolist()
+            channels = info['ch_names'][:max_ch]
 
             response = {
                 "status": "success",
@@ -87,9 +97,13 @@ def read_edf():
         elif engine == 'brainflow':
             print("[DEBUG] Running BrainFlow reader")
             data, eeg_channels, sfreq = read_with_brainflow(filepath)
+
+            max_ch = min(preview_channels, len(eeg_channels))
+            max_sm = min(preview_samples, data.shape[1])
+
             preview = {
-                f'channel_{i+1}': data[ch][:10].tolist()
-                for i, ch in enumerate(eeg_channels[:3])
+                f'channel_{i+1}': data[ch][:max_sm].tolist()
+                for i, ch in enumerate(eeg_channels[:max_ch])
             }
 
             response = {
@@ -102,8 +116,7 @@ def read_edf():
             }
 
         else:
-            print(f"[DEBUG] Invalid engine received: '{engine}'")
-            return jsonify({"error": f"Invalid engine '{engine}'. Use 'mne' or 'brainflow'."}), 400
+            return jsonify({"error": f"Invalid engine '{engine}'."}), 400
 
         os.remove(filepath)
         return jsonify(response)
