@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import io
 import mne
 
-
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
@@ -49,27 +48,30 @@ def read_with_brainflow(filepath):
     return data, eeg_channels, sfreq
 
 
+# Common helper to handle upload and parameters
+def handle_upload_and_params(request):
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        raise ValueError("No file uploaded")
+
+    engine = request.args.get('engine', 'mne').strip().lower()
+    preview_channels = int(request.args.get('preview_channels', 3))
+    preview_samples = int(request.args.get('preview_samples', 10))
+
+    file_id = str(uuid.uuid4())
+    filepath = os.path.join(UPLOAD_DIR, f'{file_id}.edf')
+    file.save(filepath)
+
+    return filepath, engine, preview_channels, preview_samples
+
+
 @app.route('/read-edf', methods=['POST'])
 def read_edf():
     try:
-        # Get engine from URL query parameter (temporary fix as we don't have a UI yet)
-        engine = request.args.get('engine', 'mne').strip().lower()
+        # Get engine and preview params
+        filepath, engine, preview_channels, preview_samples = handle_upload_and_params(request)
         print(f"[DEBUG] Selected engine: '{engine}'")
-
-        # User-controlled preview size
-        preview_channels = int(request.args.get('preview_channels', 3))
-        preview_samples = int(request.args.get('preview_samples', 10))
         print(f"[DEBUG] Preview config: {preview_channels} channels × {preview_samples} samples")
-
-        # Get the uploaded file
-        file = request.files.get('file')
-        if not file or file.filename == '':
-            return jsonify({"error": "No file uploaded"}), 400
-
-        # Save file temporarily
-        file_id = str(uuid.uuid4())
-        filepath = os.path.join(UPLOAD_DIR, f'{file_id}.edf')
-        file.save(filepath)
 
         # MNE path
         if engine == 'mne':
@@ -130,47 +132,54 @@ def read_edf():
 @app.route('/visualize-edf', methods=['POST'])
 def visualize_edf():
     try:
-        file = request.files['file']
-        file_id = str(uuid.uuid4())
-        filepath = os.path.join(UPLOAD_DIR, f'{file_id}.edf')
-        file.save(filepath)
-
-        params = BrainFlowInputParams()
-        params.file = filepath
-        board_id = BoardIds.SYNTHETIC_BOARD.value
-
-        board = BoardShim(board_id, params)
-        board.prepare_session()
-        board.start_stream()
-        time.sleep(2)
-
-        data = board.get_board_data()
-
-        board.stop_stream()
-        board.release_session()
-
-        eeg_channels = BoardShim.get_eeg_channels(board_id)
-
-        plt.figure(figsize=(14, 7))
-        for i, ch in enumerate(eeg_channels):
-            plt.plot(data[ch], label=f'Channel {i+1}')
-
-        plt.title('EEG Signals')
-        plt.xlabel('Sample Index')
-        plt.ylabel('Amplitude (uV)')
-        plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1.0))
-        plt.tight_layout()
+        # Reuse upload handler
+        filepath, engine, preview_channels, preview_samples = handle_upload_and_params(request)
 
         img_io = io.BytesIO()
-        plt.savefig(img_io, format='png')
-        img_io.seek(0)
-        plt.close()
 
+        # MNE Visualization path
+        if engine == 'mne':
+            raw = mne.io.read_raw_edf(filepath, preload=True, verbose=False)
+            raw.pick_channels(raw.ch_names[:preview_channels])
+
+            fig = raw.plot(n_channels=preview_channels,
+                           duration=preview_samples / raw.info['sfreq'],
+                           show=False, scalings='auto',
+                           title="EEG Preview (MNE)")
+            fig.savefig(img_io, format='png')
+            plt.close(fig)
+            
+
+        # BrainFlow Visualization path
+        elif engine == 'brainflow':
+            data, eeg_channels, _ = read_with_brainflow(filepath)
+            max_ch = min(preview_channels, len(eeg_channels))
+            max_sm = min(preview_samples, data.shape[1])
+            selected_data = [data[ch][:max_sm] for ch in eeg_channels[:max_ch]]
+
+            plt.figure(figsize=(12, 6))
+            for i, channel_data in enumerate(selected_data):
+                plt.plot(channel_data + i * 100, label=f'Channel {i+1}')
+
+            plt.title("EEG Preview (BrainFlow)")
+            plt.xlabel("Samples")
+            plt.ylabel("Amplitude + Offset (uV)")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(img_io, format='png')
+            plt.close()
+
+        else:
+            return jsonify({"error": f"Invalid engine '{engine}'"}), 400
+
+        img_io.seek(0)
         os.remove(filepath)
-        return send_file(img_io, mimetype='image/png')
+        return send_file(img_io, mimetype='image/png', as_attachment=True, download_name='eeg_visualization.png')
+
 
     except Exception as e:
-        print(f"Error in visualize-edf: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/filter-edf', methods=['POST'])
