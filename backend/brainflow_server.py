@@ -182,6 +182,59 @@ def visualize_edf():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/psd-edf', methods=['POST'])
+def psd_edf():
+    try:
+        filepath, engine, preview_channels, preview_samples = handle_upload_and_params(request)
+        img_io = io.BytesIO()
+
+        if engine == 'mne':
+            raw = mne.io.read_raw_edf(filepath, preload=True, verbose=False)
+            raw.pick_channels(raw.ch_names[:preview_channels])
+            fig = raw.plot_psd(fmax=60, average=True, show=False)
+            fig.savefig(img_io, format='png')
+            plt.close(fig)
+
+        elif engine == 'brainflow':
+            data, eeg_channels, sampling_rate = read_with_brainflow(filepath)
+            max_ch = min(preview_channels, len(eeg_channels))
+
+            plt.figure(figsize=(10, 6))
+            for i, ch in enumerate(eeg_channels[:max_ch]):
+                psd, freqs = DataFilter.get_psd_welch(
+                    data[ch],
+                    nfft=256,
+                    overlap=128,
+                    sampling_rate=sampling_rate,
+                    window=WindowOperations.HANNING.value
+                )
+                plt.plot(freqs, psd, label=f'Ch-{i+1}')
+            plt.title("Power Spectral Density (BrainFlow)")
+            plt.xlabel("Frequency (Hz)")
+            plt.ylabel("Power")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(img_io, format='png')
+            plt.close()
+
+        else:
+            return jsonify({"error": f"Invalid engine '{engine}'"}), 400
+
+        img_io.seek(0)
+        os.remove(filepath)
+        return send_file(
+            img_io,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name='eeg_psd.png'
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/filter-edf', methods=['POST'])
 def filter_edf():
     try:
