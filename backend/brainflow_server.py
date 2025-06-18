@@ -124,31 +124,24 @@ def compute_band_power_plot_mne(raw, max_channels=5):
     band_powers = {band: [] for band in band_ranges}
 
     plt.figure(figsize=(10, 6))
-    # for i in range(max_ch):
-    #     ch_data = data[i]
-    #     freqs, psd = plt.psd(ch_data, NFFT=256, Fs=sfreq, noverlap=128, visible=False)
-    #     for band, (low, high) in band_ranges.items():
-    #         idx = np.where((freqs >= low) & (freqs <= high))
-    #         avg_power = np.mean(psd[idx])
-    #         band_powers[band].append(avg_power)
 
     for i in range(max_ch):
         ch_data = data[i]
-    freqs, psd = welch(ch_data, fs=sfreq, nperseg=256)
-    plt.plot(freqs, psd, label=raw.ch_names[i])
-    for band, (low, high) in band_ranges.items():
-        idx = np.where((freqs >= low) & (freqs <= high))
-        avg_power = np.mean(psd[idx])
-        band_powers[band].append(avg_power)
+        freqs, psd = welch(ch_data, fs=sfreq, nperseg=256)
+        plt.plot(freqs, psd, label=raw.ch_names[i])
+        for band, (low, high) in band_ranges.items():
+            idx = np.where((freqs >= low) & (freqs <= high))
+            avg_power = np.mean(psd[idx])
+            band_powers[band].append(avg_power)
 
     band_powers_avg = {band: float(np.mean(vals)) for band, vals in band_powers.items()}
     plt.title("Power Spectral Density (MNE)")
     plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Power")
+    plt.ylabel("Power (uV²/Hz)")
+    plt.legend()
     plt.tight_layout()
     fig = plt.gcf()
     return band_powers_avg, fig
-
 
 
 @app.route('/read-edf', methods=['POST'])
