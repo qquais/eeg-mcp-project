@@ -44,6 +44,7 @@ async function forwardFile(req, res, endpoint, contentType = 'json') {
 // Existing MCP Endpoints
 app.post('/mcp/eeg', upload.single('file'), (req, res) => forwardFile(req, res, '/read-edf'));
 app.post('/mcp/visualize', upload.single('file'), (req, res) => forwardFile(req, res, '/visualize-edf', 'stream'));
+app.post('/mcp/psd', upload.single('file'), (req, res) => forwardFile(req, res, '/psd-edf', 'stream'));
 app.post('/mcp/features', upload.single('file'), (req, res) => forwardFile(req, res, '/features-edf'));
 app.post('/mcp/summary', upload.single('file'), (req, res) => forwardFile(req, res, '/summary-edf'));
 app.post('/mcp/export', upload.single('file'), (req, res) => forwardFile(req, res, '/export-edf', 'stream'));
