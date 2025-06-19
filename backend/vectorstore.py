@@ -18,17 +18,20 @@ def load_documents():
 # Build and save FAISS vectorstore
 def build_vectorstore():
     documents = load_documents()
+    # Splits large documents into 500-character chunks with 50-character overlaps
     splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_documents(documents)
-
+    # Initializes the embedding model 
     embedding = OllamaEmbeddings(model="nomic-embed-text")
+    # Converts chunks into embeddings and builds a FAISS vector index.
     vectorstore = FAISS.from_documents(chunks, embedding)
     vectorstore.save_local("vectorstore/db")
     print("✅ Vectorstore built and saved to vectorstore/db")
 
-# Retrieve top-k similar chunks for a given question
+# Retrieve top-k, (here I took k = 2 ) similar chunks for a given question
 def retrieve_context(question, k=2):
     embedding = OllamaEmbeddings(model="nomic-embed-text")
+    # Acknowledges risk from loading a pickle file by passing allow_dangerous_deserialization=True
     vectorstore = FAISS.load_local("vectorstore/db", embedding, allow_dangerous_deserialization=True)
     docs = vectorstore.similarity_search(question, k=k)
     return "\n\n".join([doc.page_content for doc in docs])
