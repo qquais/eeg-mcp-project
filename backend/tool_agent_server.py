@@ -1,10 +1,13 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, send_file
 import requests
 from langchain_community.llms import Ollama
 from vectorstore import retrieve_context
 import numpy as np
 import ast
-import re  # ✅ For newline cleanup
+import re  # For newline cleanup
+import os
+import uuid
+import json
 
 app = Flask(__name__)
 llm = Ollama(model="mistral")
@@ -134,7 +137,45 @@ Interpret this EEG data intelligently and concisely.
             else:
                 return jsonify({"error": "No band power data returned."}), 500
 
-        # Ignore image-only responses (visualizations)
+        # Enhanced: Handle image-only responses from /visualize-edf
+        elif "image" in content_type and tool_endpoint == "/visualize-edf":
+            image_path = f"./uploads/{uuid.uuid4().hex}.png"
+            os.makedirs("./uploads", exist_ok=True)
+            with open(image_path, "wb") as f:
+                f.write(mcp_res.content)
+
+            image_url = f"http://localhost:5000/uploads/{os.path.basename(image_path)}"
+
+            final_prompt = f"""
+You are an EEG assistant.
+
+The user requested to visualize an EEG file. The waveform has been successfully generated.
+
+Context:
+{rag_context}
+
+Question:
+{question}
+
+Note: The image was saved to {image_url}.
+Do not describe the image, but explain what EEG waveforms generally represent.
+"""
+
+            answer = llm.invoke(final_prompt).strip()
+            try:
+                answer = json.loads(f'"{answer}"')
+            except json.JSONDecodeError:
+                pass
+            answer = re.sub(r"[\n\r]+", " ", answer)
+            answer = re.sub(r"\s{2,}", " ", answer).strip()
+
+            return jsonify({
+                "status": "success",
+                "message": answer,
+                "image_url": image_url
+            })
+
+        # Ignore other unknown image responses
         elif "image" in content_type:
             return jsonify({
                 "error": "MCP returned an image. Cannot reason with image.",
@@ -198,16 +239,23 @@ Answer using your knowledge base. Avoid unnecessary technicalities.
 
     # Step 5: Generate and clean LLM output
     answer = llm.invoke(final_prompt).strip()
-
-    # Clean up extra slashes/newlines and spacing artifacts
-    answer = answer.replace("\\n", "\n")  # decode escaped newlines
-    answer = re.sub(r"\n(\d+)\.", r"\n\1.", answer)  # ensure numbered points look right
+    try:
+        answer = json.loads(f'"{answer}"')
+    except json.JSONDecodeError:
+        pass
+    answer = re.sub(r"[\n\r]+", " ", answer)
+    answer = re.sub(r"\s{2,}", " ", answer).strip()
 
     # Optional format: plain text or JSON
     if request.args.get("format") == "raw":
         return Response(answer, mimetype="text/plain")
     else:
         return jsonify({"status": "success", "answer": answer})
+
+# Serve downloadable EEG plots
+@app.route("/uploads/<filename>")
+def serve_upload(filename):
+    return send_file(os.path.join("uploads", filename), mimetype="image/png")
 
 if __name__ == '__main__':
     app.run(port=5002)
