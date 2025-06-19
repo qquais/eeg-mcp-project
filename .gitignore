@@ -81,3 +81,6 @@ vectorstore/db/
 
 # Chroma vector DB (if it was used earlier)
 *.sqlite3
+
+# Ignore all uploaded image files
+backend/uploads/
