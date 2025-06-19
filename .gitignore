@@ -74,3 +74,10 @@ mcp_cli/engine-info/
 # node-modules file
 mcp-server/node_modules/
 
+# FAISS Vectorstore files
+vectorstore/db/
+*.faiss
+*.pkl
+
+# Chroma vector DB (if it was used earlier)
+*.sqlite3

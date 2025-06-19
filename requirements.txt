@@ -27,3 +27,6 @@ unstructured
 
 # Ollama Embeddings / Local LLMs
 ollama-client  # For managing local LLM via Ollama API
+
+# For vector similarity search
+faiss-cpu 

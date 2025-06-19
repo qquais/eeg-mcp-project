@@ -1,16 +1,14 @@
-# controller_agent.py
 from flask import Flask, request, jsonify
 import requests
 from langchain_community.llms import Ollama
+from vectorstore import retrieve_context
 import numpy as np
+import ast
 
 app = Flask(__name__)
-
-# 🔁 Step 1: Set up local LLM
 llm = Ollama(model="mistral")
 
-# 🔁 Step 2: Define simple keyword-based tool selector
-
+# Tool Mapping
 TOOL_MAPPING = {
     "band": "/features-edf",
     "feature": "/features-edf",
@@ -22,18 +20,19 @@ TOOL_MAPPING = {
     "plot": "/visualize-edf",
     "summary": "/summary-edf",
     "describe": "/summary-edf",
-    "overview": "/summary-edf"
+    "overview": "/summary-edf",
+    "psd": "/psd-edf",
+    "spectrum": "/psd-edf",
+    "spectral": "/psd-edf",
+    "frequency": "/psd-edf"
 }
 
-
-# 🔁 Step 3: Decide which tool to invoke based on question
 def pick_tool(question):
     for keyword, endpoint in TOOL_MAPPING.items():
         if keyword in question.lower():
             return endpoint
     return None
 
-# 🔁 Step 4: Summarize filtered EEG data
 def summarize_filtered_data(filtered_data):
     summary = {}
     for channel, values in filtered_data.items():
@@ -46,7 +45,6 @@ def summarize_filtered_data(filtered_data):
         }
     return summary
 
-# 🔁 Step 5: Agent Endpoint
 @app.route("/mcp/agent", methods=["POST"])
 def agent():
     file = request.files.get("file")
@@ -56,6 +54,7 @@ def agent():
         return jsonify({"error": "Missing question"}), 400
 
     tool_endpoint = pick_tool(question)
+    rag_context = retrieve_context(question)
 
     if tool_endpoint and file:
         files = {"file": (file.filename, file.stream, file.mimetype)}
@@ -66,26 +65,81 @@ def agent():
 
         content_type = mcp_res.headers.get("Content-Type", "")
 
-        # Handle image/binary responses
-        if "image" in content_type:
+        # PSD: image + band powers in header
+        if tool_endpoint == "/psd-edf" and "image" in content_type:
+            band_powers_header = mcp_res.headers.get("X-Band-Powers")
+            if band_powers_header:
+                try:
+                    band_powers = ast.literal_eval(band_powers_header)
+                except Exception:
+                    band_powers = band_powers_header
+                final_prompt = f"""
+Context:
+{rag_context}
+
+User Question:
+{question}
+
+MCP Band Powers:
+{band_powers}
+
+Interpret this EEG data intelligently.
+"""
+            else:
+                return jsonify({"error": "No band power data returned."}), 500
+
+        # Other image types (visualizations)
+        elif "image" in content_type:
             return jsonify({
-                "error": "MCP returned binary (image) data. Cannot pass to LLM.",
-                "hint": "This endpoint returns a graph (PNG), not usable for text reasoning."
+                "error": "MCP returned an image. Cannot reason with image.",
+                "hint": "Try a tool that returns JSON instead."
             }), 400
 
-        try:
-            mcp_data = mcp_res.json()
-        except ValueError:
-            return jsonify({"error": "Invalid JSON response from MCP server.", "raw": mcp_res.text}), 500
-
-        # Optional pre-processing if tool is filter-edf
-        if tool_endpoint == "/filter-edf":
-            summary_data = summarize_filtered_data(mcp_data.get("filtered_data", {}))
-            final_prompt = f"Question: {question}\n\nEEG Summary Stats: {summary_data}\n\nGive a final answer based on the above."
         else:
-            final_prompt = f"Question: {question}\n\nMCP Data: {mcp_data}\n\nGive a final answer based on the above."
+            try:
+                mcp_data = mcp_res.json()
+            except ValueError:
+                return jsonify({"error": "Invalid JSON from MCP", "raw": mcp_res.text}), 500
+
+            if tool_endpoint == "/filter-edf":
+                summary_data = summarize_filtered_data(mcp_data.get("filtered_data", {}))
+                final_prompt = f"""
+Context:
+{rag_context}
+
+User Question:
+{question}
+
+MCP Filtered EEG Summary:
+{summary_data}
+
+Answer based on signal stats and context.
+"""
+            else:
+                final_prompt = f"""
+Context:
+{rag_context}
+
+User Question:
+{question}
+
+MCP Data:
+{mcp_data}
+
+Answer clearly using domain knowledge.
+"""
+
     else:
-        final_prompt = question
+        # No file-based tool, just a question
+        final_prompt = f"""
+Context:
+{rag_context}
+
+User Question:
+{question}
+
+Answer clearly using the EEG domain knowledge above.
+"""
 
     answer = llm.invoke(final_prompt)
     return jsonify({"status": "success", "answer": answer})
