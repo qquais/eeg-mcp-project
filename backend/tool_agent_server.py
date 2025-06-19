@@ -1,38 +1,79 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 import requests
 from langchain_community.llms import Ollama
 from vectorstore import retrieve_context
 import numpy as np
 import ast
+import re  # ✅ For newline cleanup
 
 app = Flask(__name__)
 llm = Ollama(model="mistral")
 
-# Tool Mapping
+# 🔁 Step 1: Define keyword-based tool selector
 TOOL_MAPPING = {
-    "band": "/features-edf",
-    "feature": "/features-edf",
-    "brainwave": "/features-edf",
-    "power": "/features-edf",
-    "filter": "/filter-edf",
-    "noise": "/filter-edf",
+    # Read EDF metadata
+    "read": "/read-edf",
+    "channel": "/read-edf",
+    "preview": "/read-edf",
+    "sampling": "/read-edf",
+    "shape": "/read-edf",
+
+    # Visualize EEG waveform
     "visualize": "/visualize-edf",
     "plot": "/visualize-edf",
-    "summary": "/summary-edf",
-    "describe": "/summary-edf",
-    "overview": "/summary-edf",
+    "graph": "/visualize-edf",
+    "waveform": "/visualize-edf",
+    "draw": "/visualize-edf",
+
+    # Power Spectrum (PSD)
     "psd": "/psd-edf",
     "spectrum": "/psd-edf",
     "spectral": "/psd-edf",
-    "frequency": "/psd-edf"
+    "frequency": "/psd-edf",
+    "band power": "/psd-edf",
+
+    # Brainwave Band Features
+    "feature": "/features-edf",
+    "features": "/features-edf",
+    "brainwave": "/features-edf",
+    "delta": "/features-edf",
+    "alpha": "/features-edf",
+    "beta": "/features-edf",
+    "gamma": "/features-edf",
+    "theta": "/features-edf",
+    "band": "/features-edf",
+    "power": "/features-edf",
+
+    # Filtering
+    "filter": "/filter-edf",
+    "clean": "/filter-edf",
+    "noise": "/filter-edf",
+    "denoise": "/filter-edf",
+    "bandpass": "/filter-edf",
+
+    # Summary Statistics
+    "summary": "/summary-edf",
+    "describe": "/summary-edf",
+    "overview": "/summary-edf",
+    "min": "/summary-edf",
+    "max": "/summary-edf",
+    "mean": "/summary-edf",
+    "std": "/summary-edf",
+    "range": "/summary-edf",
+
+    # Export (future)
+    "export": "/export-edf",
+    "download": "/export-edf"
 }
 
+# Step 2: Find tool endpoint based on question
 def pick_tool(question):
     for keyword, endpoint in TOOL_MAPPING.items():
         if keyword in question.lower():
             return endpoint
     return None
 
+# Step 3: Summarize EEG signal for filter-edf responses
 def summarize_filtered_data(filtered_data):
     summary = {}
     for channel, values in filtered_data.items():
@@ -45,6 +86,7 @@ def summarize_filtered_data(filtered_data):
         }
     return summary
 
+# Step 4: ToolAgent route to handle file + question
 @app.route("/mcp/agent", methods=["POST"])
 def agent():
     file = request.files.get("file")
@@ -53,9 +95,11 @@ def agent():
     if not question:
         return jsonify({"error": "Missing question"}), 400
 
+    # Tool + Context selection
     tool_endpoint = pick_tool(question)
     rag_context = retrieve_context(question)
 
+    # File-based tools (e.g. PSD, Filter)
     if tool_endpoint and file:
         files = {"file": (file.filename, file.stream, file.mimetype)}
         mcp_res = requests.post(f"http://localhost:5000{tool_endpoint}", files=files)
@@ -65,7 +109,7 @@ def agent():
 
         content_type = mcp_res.headers.get("Content-Type", "")
 
-        # PSD: image + band powers in header
+        # Handle PSD with band powers in header
         if tool_endpoint == "/psd-edf" and "image" in content_type:
             band_powers_header = mcp_res.headers.get("X-Band-Powers")
             if band_powers_header:
@@ -74,75 +118,96 @@ def agent():
                 except Exception:
                     band_powers = band_powers_header
                 final_prompt = f"""
+You are an EEG assistant. Do not return code unless explicitly asked.
+
 Context:
 {rag_context}
 
-User Question:
+Question:
 {question}
 
 MCP Band Powers:
 {band_powers}
 
-Interpret this EEG data intelligently.
+Interpret this EEG data intelligently and concisely.
 """
             else:
                 return jsonify({"error": "No band power data returned."}), 500
 
-        # Other image types (visualizations)
+        # Ignore image-only responses (visualizations)
         elif "image" in content_type:
             return jsonify({
                 "error": "MCP returned an image. Cannot reason with image.",
                 "hint": "Try a tool that returns JSON instead."
             }), 400
 
+        # Handle all other JSON-based MCP tools
         else:
             try:
                 mcp_data = mcp_res.json()
             except ValueError:
                 return jsonify({"error": "Invalid JSON from MCP", "raw": mcp_res.text}), 500
 
+            # For Filtered EEG
             if tool_endpoint == "/filter-edf":
                 summary_data = summarize_filtered_data(mcp_data.get("filtered_data", {}))
                 final_prompt = f"""
+You are an EEG assistant. Avoid Python code in the response unless requested.
+
 Context:
 {rag_context}
 
-User Question:
+Question:
 {question}
 
 MCP Filtered EEG Summary:
 {summary_data}
 
-Answer based on signal stats and context.
+Provide a meaningful interpretation for the user.
 """
             else:
+                # General EEG tool output
                 final_prompt = f"""
+You are a helpful EEG assistant. Keep responses user-friendly and concise.
+
 Context:
 {rag_context}
 
-User Question:
+Question:
 {question}
 
 MCP Data:
 {mcp_data}
 
-Answer clearly using domain knowledge.
+Answer clearly using EEG domain knowledge.
 """
 
+    # No file tool — pure question-answering
     else:
-        # No file-based tool, just a question
         final_prompt = f"""
+You are a helpful EEG assistant. Use the domain context below.
+
 Context:
 {rag_context}
 
-User Question:
+Question:
 {question}
 
-Answer clearly using the EEG domain knowledge above.
+Answer using your knowledge base. Avoid unnecessary technicalities.
 """
 
-    answer = llm.invoke(final_prompt)
-    return jsonify({"status": "success", "answer": answer})
+    # Step 5: Generate and clean LLM output
+    answer = llm.invoke(final_prompt).strip()
+
+    # Clean up extra slashes/newlines and spacing artifacts
+    answer = answer.replace("\\n", "\n")  # decode escaped newlines
+    answer = re.sub(r"\n(\d+)\.", r"\n\1.", answer)  # ensure numbered points look right
+
+    # Optional format: plain text or JSON
+    if request.args.get("format") == "raw":
+        return Response(answer, mimetype="text/plain")
+    else:
+        return jsonify({"status": "success", "answer": answer})
 
 if __name__ == '__main__':
     app.run(port=5002)
