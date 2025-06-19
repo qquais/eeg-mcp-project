@@ -84,3 +84,6 @@ vectorstore/db/
 
 # Ignore all uploaded image files
 backend/uploads/
+
+# Ignore all doc txt files
+docs/*.txt

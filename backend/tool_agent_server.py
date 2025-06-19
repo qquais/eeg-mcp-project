@@ -12,7 +12,7 @@ import json
 app = Flask(__name__)
 llm = Ollama(model="mistral")
 
-# 🔁 Step 1: Define keyword-based tool selector
+# Step 1: Define keyword-based tool selector
 TOOL_MAPPING = {
     # Read EDF metadata
     "read": "/read-edf",
