@@ -89,3 +89,9 @@ backend/uploads/
 
 # Ignore all doc txt files
 backend/docs/*.txt
+
+# Ignore uploaded EEG files
+backend/uploaded.edf
+
+# Ignore FAISS vectorstore
+backend/vectorstore/
