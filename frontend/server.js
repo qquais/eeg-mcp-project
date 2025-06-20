@@ -47,28 +47,27 @@ app.post('/mcp/visualize', upload.single('file'), (req, res) => forwardFile(req,
 app.post('/mcp/psd', upload.single('file'), (req, res) => forwardFile(req, res, '/psd-edf', 'stream'));
 app.post('/mcp/features', upload.single('file'), (req, res) => forwardFile(req, res, '/features-edf'));
 app.post('/mcp/summary', upload.single('file'), (req, res) => forwardFile(req, res, '/summary-edf'));
-app.post('/mcp/export', upload.single('file'), (req, res) => forwardFile(req, res, '/export-edf', 'stream'));
 app.post('/mcp/filter', upload.single('file'), (req, res) => forwardFile(req, res, '/filter-edf'));
 
-// ✅ New RAG Query API
-app.post('/mcp/query', async (req, res) => {
-    const { question } = req.body;
-    if (!question) return res.status(400).json({ error: 'Question is required' });
+// RAG Query API
+// app.post('/mcp/query', async (req, res) => {
+//     const { question } = req.body;
+//     if (!question) return res.status(400).json({ error: 'Question is required' });
 
-    try {
-        const response = await axios.post('http://localhost:11434/api/generate', {
-            model: 'mistral',
-            prompt: question,
-            stream: false
-        });
+//     try {
+//         const response = await axios.post('http://localhost:11434/api/generate', {
+//             model: 'mistral',
+//             prompt: question,
+//             stream: false
+//         });
 
-        return res.json({ status: 'success', answer: response.data.response });
+//         return res.json({ status: 'success', answer: response.data.response });
 
-    } catch (error) {
-        console.error('/mcp/query Error:', error.message);
-        res.status(500).send('Error processing query');
-    }
-});
+//     } catch (error) {
+//         console.error('/mcp/query Error:', error.message);
+//         res.status(500).send('Error processing query');
+//     }
+// });
 
 app.listen(3000, () => {
     console.log('✅ MCP Server running at http://localhost:3000');

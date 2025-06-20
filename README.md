@@ -1,6 +1,6 @@
 # eeg-mcp-project
 
-- View the full [sequence diagram here](docs/sequence-diagram.md)
+- View the full [sequence diagram here](flow/sequence-diagram.md)
 
 ### 🧠 MCP - EEG Data Processing & Local RAG Assistant with Tool Agent
 This project integrates:
