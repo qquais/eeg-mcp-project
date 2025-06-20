@@ -31,7 +31,7 @@ source .venv/bin/activate  # Mac/Linux
 ### 3️⃣ Install Python Dependencies
 
 ```bash
-pip install -r requirement.txt
+pip install -r requirements.txt
 ```
 
 ### 4️⃣ Install & Start Ollama (Local LLM)
@@ -91,18 +91,19 @@ node server.js
 
 4. **Optional UI Integration (Node Server)**
 
-* The `mcp-server/server.js` Node server bridges EEG APIs with frontend apps (e.g., React)
+* The `frontend/server.js` Node server bridges EEG APIs with frontend apps (e.g., React)
 * Enables upload previews, waveform rendering, or future real-time dashboard integration
 * Not required for backend+LLM functionality but useful for full-stack development
 
 ### 🔄 Restart Workflow
 
 ```bash
+python -m venv .venv
 source .venv/bin/activate
 ollama serve
 python backend/mcp_server.py
 python backend/tool_agent_server.py
-cd frontend && node server.js
+cd frontend && node server.js #Optional
 ```
 
 ### Example Prompts
@@ -131,3 +132,4 @@ cd frontend && node server.js
 
 ###  Project Demo 
 
+* Link: 
