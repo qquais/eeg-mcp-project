@@ -47,6 +47,8 @@ coverage.xml
 
 # macOS files
 .DS_Store
+**/.DS_Store
+
 
 # MCP CLI cache/config if any
 mcp_cli.egg-info/
@@ -59,7 +61,7 @@ mcp_cli.egg-info/
 data/
 
 # Ignore uploads folder in mcp-server
-mcp-server/uploads/
+frontend/uploads/
 
 # Ignore macOS files
 .DS_Store
@@ -72,5 +74,24 @@ mcp_cli/engine-info/
 *.edf
 
 # node-modules file
-mcp-server/node_modules/
+frontend/node_modules/
 
+# FAISS Vectorstore files
+vectorstore/db/
+*.faiss
+*.pkl
+
+# Chroma vector DB (if it was used earlier)
+*.sqlite3
+
+# Ignore all uploaded image files
+backend/uploads/
+
+# Ignore all doc txt files
+# backend/docs/*.txt
+
+# Ignore uploaded EEG files
+backend/uploaded.edf
+
+# Ignore FAISS vectorstore
+backend/vectorstore/

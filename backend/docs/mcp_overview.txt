@@ -1,1 +1,1 @@
-This is MCP overview content.
+This is MCP (Model Context Protocol) overview content.
