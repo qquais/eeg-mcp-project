@@ -1,113 +1,133 @@
 # eeg-mcp-project
 
-- View the full [sequence diagram here](flow/sequence-diagram.md)
+* View the full [sequence diagram here](flow/sequence-diagram.md)
 
-### 🧠 MCP - EEG Data Processing & Local RAG Assistant with Tool Agent
+### 🧠 EEG MCP Server & Intelligent Tool (EEG-BOT)
+
 This project integrates:
 
-- EEG Signal Processing (MCP) using BrainFlow.
+* EEG Signal Processing (MCP) using **BrainFlow** and **MNE-Python**.
 
-- RAG (Retrieval-Augmented Generation) for local document-based Q&A using LangChain, Chroma VectorDB, and Ollama (Mistral model).
+* RAG (Retrieval-Augmented Generation) for local document-based Q\&A using LangChain, FAISS VectorDB, and Ollama (nomic-embed-text for embeddings, Mistral for answers).
 
-- Tool-Use Agent — A smart LLM-based controller that decides when to call an EEG API vs directly answering.
+* Tool-Use Agent — A smart LLM-based controller that decides when to call an EEG API, retrieves its output, and intelligently answers using both the tool response and contextual EEG knowledge.
 
 ## 🚀 Setup Instructions
 
 ### 1️⃣ Clone the Repository
 
+```bash
 git clone https://github.com/your-username/eeg-mcp-project.git
 cd eeg-mcp-project
+```
 
 ### 2️⃣ Create & Activate Python Virtual Environment
 
+```bash
 python -m venv .venv
 source .venv/bin/activate  # Mac/Linux
+```
 
 ### 3️⃣ Install Python Dependencies
+
+```bash
 pip install -r requirement.txt
+```
 
 ### 4️⃣ Install & Start Ollama (Local LLM)
-brew install ollama  # macOS via Homebrew
 
-ollama serve         # Start Ollama server (runs on 127.0.0.1:11434)
-
-ollama pull mistral  # Pull Mistral model for RAG inference
+```bash
+brew install ollama         # macOS via Homebrew
+ollama serve                # Start Ollama server (127.0.0.1:11434)
+ollama pull mistral         # Pull Mistral model
+ollama pull nomic-embed-text  # Pull embedding model
+```
 
 ### 5️⃣ Populate Vector Database (One-time Step)
+
+```bash
 python backend/vectorstore.py
+```
 
 ### 6️⃣ Start Servers
 
-## Start MCP EEG Server
-python backend/brainflow_server.py
+```bash
+# Start EEG MCP Server (BrainFlow + MNE)
+python backend/mcp_server.py
 
-## Start RAG Retrieval Server (LangChain + Ollama)
-python backend/rag_server.py
-
-## Start Tool-Agent Controller
+# Start Tool-Agent Controller
 python backend/tool_agent_server.py
 
-## Start Node Server
-node server.js # mcp-server folder
-
+# Start NodeJS Server (Optional, after UI Implementation)
+cd frontend
+node server.js
+```
 
 ### ✅ Features Breakdown
-1. EEG MCP Server (BrainFlow)
 
-- /read-edf – Read EEG EDF files.
+1. **EEG MCP Server (BrainFlow & MNE)**
 
-- /visualize-edf – Visualize EEG signals (plot).
+* `/read-edf` – Read EEG EDF files and metadata
+* `/visualize-edf` – Plot EEG signal previews
+* `/psd-edf` – Compute & plot Power Spectral Density (Band Powers)
+* `/filter-edf` – Apply bandpass filter (0.5 Hz - 40 Hz)
+* `/features-edf` – Get brainwave band powers (Delta to Gamma)
+* `/summary-edf` – Per-channel signal summary (mean, std, min, max)
 
-- /filter-edf – Apply bandpass filtering to EEG signals.
+2. **RAG Assistant (LangChain + FAISS + Ollama)**
 
-- /features-edf – Extract average band powers (Delta, Theta, Alpha, Beta, Gamma) from EEG signals.
+* Stores `./docs/*.txt` files in FAISS vector DB
+* Embeds using `nomic-embed-text` (via Ollama)
+* Generates answers with `mistral` model (via Ollama)
+* Endpoint: `retrieve_context(question)` used by Tool Agent
 
-- /summary-edf – Summarize EEG signal characteristics and metadata
+3. **Tool-Agent Controller (`/mcp/agent`)**
 
-2. RAG Knowledge Assistant (Ollama + Chroma)
-- Uses Chroma VectorDB to store documents (docs/brainflow_notes.txt etc.).
+* Accepts: question + EEG file
+* Detects which EEG API to call based on keywords
+* Merges EEG output + RAG context into LLM prompt
+* Returns interpreted human-readable answer
+* Visualization questions generate image + download link
 
-- Runs Mistral model via Ollama for local LLM answering.
+4. **Optional UI Integration (Node Server)**
 
-- API: /mcp/query – Ask questions about EEG concepts, filtering, brainflow usage.
+* The `mcp-server/server.js` Node server bridges EEG APIs with frontend apps (e.g., React)
+* Enables upload previews, waveform rendering, or future real-time dashboard integration
+* Not required for backend+LLM functionality but useful for full-stack development
 
-3. Tool-Agent Controller
+### 🔄 Restart Workflow
 
-- A smart agent that:
-
-  Accepts a question and an EDF file
-
-  Decides if it needs to: Call an EEG tool (like /filter-edf, /summary-edf) or just answer using the LLM directly
-
-- Embeds the MCP output in the LLM prompt for more accurate, context-aware responses.
-
-- Endpoint: /mcp/agent - Unified EEG + QA endpoint via intelligent controller
-
-- Example: Ask "Summarize this EEG file" — it calls /summary-edf, gets results, and asks the LLM to explain in human terms.
-
-### 🔄 Restarting Workflow
+```bash
 source .venv/bin/activate
-
 ollama serve
-
-python backend/brainflow_server.py
-
-python backend/rag_server.py
-
+python backend/mcp_server.py
 python backend/tool_agent_server.py
+cd frontend && node server.js
+```
 
-node server.js #mcp-server folder
+### Example Prompts
 
-python backend/vectorstore.py #(Optional)
+* "Summarize this EEG signal"
+* "Show the PSD of this file"
+* "What is the alpha band power?"
+* "Filter this EEG signal"
+* "Plot the waveform"
 
-### 🎯 Project Objective
-“EEG Data + Local Intelligence” — A private, LLM-powered system for EEG signal interpretation, context-aware document Q&A, filtering, and summaries — all without relying on OpenAI APIs.
+###  Project Objective
 
-### 📝 Notes
-- BrainFlow SDK powers EEG data simulation, filtering, feature extraction, and more.
+“EEG Data + Local Intelligence” — A fully local EEG analysis platform with:
 
-- LangChain + Ollama provide fully local RAG + LLM capabilities.
+* Smart LLM-assisted interpretation
+* Modular APIs for future ML/real-time integration
+* No OpenAI/API keys needed
 
-- Chroma is used to persist and search embedded document vectors.
+###  Notes
 
-- This system can route questions dynamically to backend tools and return intelligent LLM-formulated answers.
+* EEG: BrainFlow for data emulation, MNE for file parsing
+* LLM: Ollama for local `mistral` model
+* RAG: FAISS for local doc search using `nomic-embed-text`
+* Tool Agent: Connects LLM to EEG tools
+* Visualization is served back as downloadable image
+
+###  Project Demo 
+
