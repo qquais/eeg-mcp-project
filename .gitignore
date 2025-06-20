@@ -47,6 +47,8 @@ coverage.xml
 
 # macOS files
 .DS_Store
+**/.DS_Store
+
 
 # MCP CLI cache/config if any
 mcp_cli.egg-info/
