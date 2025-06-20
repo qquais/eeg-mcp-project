@@ -18,7 +18,6 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 UPLOAD_DIR = './data'
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
 # Helper function for reading EDF files using MNE
 # This function reads an EDF file and returns the data and info.
 def read_with_mne(filepath):

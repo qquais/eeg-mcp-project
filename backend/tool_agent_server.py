@@ -63,10 +63,6 @@ TOOL_MAPPING = {
     "mean": "/summary-edf",
     "std": "/summary-edf",
     "range": "/summary-edf",
-
-    # Export (future)
-    "export": "/export-edf",
-    "download": "/export-edf"
 }
 
 # Step 2: Find tool endpoint based on question
