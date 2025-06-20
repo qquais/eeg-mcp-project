@@ -1,0 +1,1 @@
+EEG signal processing involves acquisition, filtering, and analysis of brain signals.

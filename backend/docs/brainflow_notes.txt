@@ -1,0 +1,1 @@
+This project uses BrainFlow SDK for EEG data handling.
