@@ -3,20 +3,21 @@
 ```mermaid
 sequenceDiagram
     participant Client
-    participant ToolAgent
-    participant MCP_Server
+    participant Tool Agent
+    participant MCP Server
     participant LLM (Ollama)
 
-    Client-->>ToolAgent: POST /mcp/agent (question + file)
+    Client->>Tool Agent: POST /mcp/agent (question + file)
 
-    alt Tool needed (e.g., "filter", "band", "summary")
-        ToolAgent-->>MCP_Server: Call appropriate MCP API (e.g., /filter-edf)
-        MCP_Server-->>ToolAgent: Returns JSON data
-        ToolAgent-->>LLM (Ollama): Ask question + MCP data in prompt
-        LLM (Ollama)-->>ToolAgent: Final answer
-    else General question (no file needed)
-        ToolAgent-->>LLM (Ollama): Ask question directly
-        LLM (Ollama)-->>ToolAgent: Final answer
+    alt EEG Tool Required (e.g., filter, band, summary)
+        Tool Agent->>MCP Server: Call relevant EEG API (e.g., /filter-edf)
+        MCP Server-->>Tool Agent: Return JSON/Image Data
+        Tool Agent->>LLM (Ollama): Ask with EEG data + context
+        LLM (Ollama)-->>Tool Agent: Final response
+    else General Question
+        Tool Agent->>LLM (Ollama): Ask using context only
+        LLM (Ollama)-->>Tool Agent: Final response
     end
 
-    ToolAgent-->>Client: Respond with answer
+    Tool Agent-->>Client: Return answer (and image URL if applicable)
+
