@@ -306,56 +306,75 @@ def psd_edf():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+    
 
 @app.route('/filter-edf', methods=['POST'])
 def filter_edf():
     try:
-        file = request.files['file']
-        file_id = str(uuid.uuid4())
-        filepath = os.path.join(UPLOAD_DIR, f'{file_id}.edf')
-        file.save(filepath)
+        filepath, engine, preview_channels, preview_samples = handle_upload_and_params(request)
 
-        params = BrainFlowInputParams()
-        params.file = filepath
-        board_id = BoardIds.SYNTHETIC_BOARD.value
+        filtered_data = {}
 
-        board = BoardShim(board_id, params)
-        board.prepare_session()
-        board.start_stream()
-        time.sleep(2)
+        if engine == 'brainflow':
+            # --- BrainFlow path ---
+            params = BrainFlowInputParams()
+            params.file = filepath
+            board_id = BoardIds.SYNTHETIC_BOARD.value
 
-        data = board.get_board_data()
+            board = BoardShim(board_id, params)
+            board.prepare_session()
+            board.start_stream()
+            time.sleep(2)
 
-        board.stop_stream()
-        board.release_session()
+            data = board.get_board_data()
+            board.stop_stream()
+            board.release_session()
 
-        eeg_channels = BoardShim.get_eeg_channels(board_id)
-        sampling_rate = BoardShim.get_sampling_rate(board_id)
+            eeg_channels = BoardShim.get_eeg_channels(board_id)
+            sampling_rate = BoardShim.get_sampling_rate(board_id)
 
-        print(f"Applying Band-pass Filter: 0.5Hz - 40Hz on {len(eeg_channels)} channels")
+            center_freq = (0.5 + 40.0) / 2
+            band_width = 40.0 - 0.5
 
-        center_freq = (0.5 + 40.0) / 2  # 20.25 Hz
-        band_width = 40.0 - 0.5         # 39.5 Hz
+            for ch in eeg_channels:
+                DataFilter.perform_bandpass(
+                    data[ch],
+                    sampling_rate,
+                    center_freq,
+                    band_width,
+                    4,
+                    FilterTypes.BUTTERWORTH.value,
+                    0
+                )
 
-        for ch in eeg_channels:
-            DataFilter.perform_bandpass(
-                data[ch],         
-                sampling_rate,    
-                center_freq,      
-                band_width,       
-                4,                
-                FilterTypes.BUTTERWORTH.value,  
-                0                 
-            )
+            filtered_data = {
+                f'channel_{i+1}': data[ch][:preview_samples].tolist()
+                for i, ch in enumerate(eeg_channels[:preview_channels])
+            }
 
-        filtered_data = {f'channel_{i+1}': data[ch].tolist() for i, ch in enumerate(eeg_channels)}
+        elif engine == 'mne':
+            # --- MNE path ---
+            raw = mne.io.read_raw_edf(filepath, preload=True, verbose=False)
+            raw.pick_channels(raw.ch_names[:preview_channels])
+            raw.filter(0.5, 40.0, fir_design='firwin')
+
+            data, _ = raw[:, :preview_samples]
+            filtered_data = {
+                raw.ch_names[i]: data[i].tolist()
+                for i in range(min(preview_channels, data.shape[0]))
+            }
+
+        else:
+            return jsonify({"error": f"Invalid engine '{engine}'"}), 400
 
         os.remove(filepath)
-        return jsonify({'filtered_data': filtered_data})
+        return jsonify({'engine': engine, 'filtered_data': filtered_data})
 
     except Exception as e:
-        print(f"Error in filter-edf: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/features-edf', methods=['POST'])
 def features_edf():
