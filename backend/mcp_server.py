@@ -376,6 +376,72 @@ def filter_edf():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/notch-filter-edf', methods=['POST'])
+def notch_filter_edf():
+    try:
+        filepath, engine, preview_channels, preview_samples = handle_upload_and_params(request)
+        notch_freq = float(request.args.get("notch_freq", 50))  # Default to 50Hz
+
+        filtered_data = {}
+
+        if engine == 'mne':
+            raw = mne.io.read_raw_edf(filepath, preload=True, verbose=False)
+            raw.pick(raw.ch_names[:preview_channels])
+            raw.notch_filter(freqs=notch_freq)
+
+            data, _ = raw[:, :preview_samples]
+            filtered_data = {
+                raw.ch_names[i]: data[i].tolist()
+                for i in range(min(preview_channels, data.shape[0]))
+            }
+
+        elif engine == 'brainflow':
+            params = BrainFlowInputParams()
+            params.file = filepath
+            board_id = BoardIds.SYNTHETIC_BOARD.value
+
+            board = BoardShim(board_id, params)
+            board.prepare_session()
+            board.start_stream()
+            time.sleep(2)
+            data = board.get_board_data()
+            board.stop_stream()
+            board.release_session()
+
+            eeg_channels = BoardShim.get_eeg_channels(board_id)
+            sampling_rate = BoardShim.get_sampling_rate(board_id)
+
+            for ch in eeg_channels:
+                DataFilter.perform_bandstop(
+                    data[ch],
+                    sampling_rate,
+                    notch_freq,
+                    4.0,  # bandwidth
+                    4,
+                    FilterTypes.BUTTERWORTH.value,
+                    0
+                )
+
+            filtered_data = {
+                f'channel_{i+1}': data[ch][:preview_samples].tolist()
+                for i, ch in enumerate(eeg_channels[:preview_channels])
+            }
+
+        else:
+            return jsonify({"error": f"Invalid engine '{engine}'"}), 400
+
+        os.remove(filepath)
+        return jsonify({
+            "engine": engine,
+            "notch_freq": notch_freq,
+            "filtered_data": filtered_data
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/features-edf', methods=['POST'])
 def features_edf():
     try:
