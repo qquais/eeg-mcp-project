@@ -380,7 +380,15 @@ def filter_edf():
 def notch_filter_edf():
     try:
         filepath, engine, preview_channels, preview_samples = handle_upload_and_params(request)
-        notch_freq = float(request.args.get("notch_freq", 50))  # Default to 50Hz
+
+        # Parse notch frequency safely
+        notch_freq_raw = request.args.get("notch_freq") or request.form.get("notch_freq") or 50
+        try:
+            notch_freq = float(notch_freq_raw)
+        except ValueError:
+            return jsonify({"error": f"Invalid notch_freq: {notch_freq_raw}"}), 400
+
+        print(f"[DEBUG] Notch Freq: {notch_freq} (type: {type(notch_freq)})")
 
         filtered_data = {}
 
@@ -403,20 +411,31 @@ def notch_filter_edf():
             board = BoardShim(board_id, params)
             board.prepare_session()
             board.start_stream()
-            time.sleep(2)
-            data = board.get_board_data()
+            time.sleep(3)  # Wait for enough samples
+            data = board.get_current_board_data(2048)
             board.stop_stream()
             board.release_session()
 
             eeg_channels = BoardShim.get_eeg_channels(board_id)
             sampling_rate = BoardShim.get_sampling_rate(board_id)
 
+            print(f"[DEBUG] EEG channels: {eeg_channels}, Sampling rate: {sampling_rate}")
+            print(f"[DEBUG] Data shape: {data.shape}")
+
             for ch in eeg_channels:
+                if ch >= data.shape[0]:
+                    print(f"[WARN] Skipping invalid EEG channel index: {ch}")
+                    continue
+
+                if data[ch].size < 3 * sampling_rate:
+                    print(f"[WARN] Skipping channel {ch}: insufficient samples ({data[ch].size})")
+                    continue
+
                 DataFilter.perform_bandstop(
                     data[ch],
                     sampling_rate,
                     notch_freq,
-                    4.0,  # bandwidth
+                    4.0,
                     4,
                     FilterTypes.BUTTERWORTH.value,
                     0
@@ -425,6 +444,7 @@ def notch_filter_edf():
             filtered_data = {
                 f'channel_{i+1}': data[ch][:preview_samples].tolist()
                 for i, ch in enumerate(eeg_channels[:preview_channels])
+                if ch < data.shape[0]
             }
 
         else:
@@ -441,6 +461,7 @@ def notch_filter_edf():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/features-edf', methods=['POST'])
 def features_edf():
